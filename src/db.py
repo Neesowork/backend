@@ -57,6 +57,7 @@ class DatabaseWorker:
         self.metadata.create_all(self.engine)
 
     def build_filtering_query(self, filter, table='resumes'):
+        print(filter)
         select_query = f'SELECT * FROM {table}'
 
         order_by = []
@@ -67,6 +68,7 @@ class DatabaseWorker:
                     if 'ordering' in entry:
                         order_by.append([key, entry['ordering']])
                     select_query += f' {table}.{key} LIKE \'{entry["text"]}\' OR'
+                select_query = select_query[:-2] + 'AND'
             select_query = select_query[:-3]
 
         if order_by:
@@ -81,6 +83,7 @@ class DatabaseWorker:
     def get_vacancies_table(self, page=0, limit=20, filter={}):
         with self.engine.connect() as connection:
             select_query = self.build_filtering_query(loads(filter), 'vacancies') + f' LIMIT {limit} OFFSET {page*limit}'
+            print(select_query)
             return connection.execute(text(select_query)).mappings().all()
 
     def get_resumes_table(self, page=0, limit=20, filter={}):
