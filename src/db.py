@@ -1,8 +1,7 @@
-from sqlalchemy.orm import DeclarativeBase, Session
-from sqlalchemy import create_engine, text, Table, Column, Integer, MetaData, Text, select
+from sqlalchemy import Table, Column, Integer, MetaData, Text, text, create_engine
 from sqlalchemy.dialects.mysql import VARCHAR, MEDIUMTEXT, JSON, TINYTEXT, CHAR, insert
-
 from sqlalchemy_utils import database_exists, create_database
+
 from json import loads
 
 class DatabaseWorker:
@@ -17,7 +16,7 @@ class DatabaseWorker:
             'resumes',
             self.metadata,
             Column('id', VARCHAR(38), primary_key=True, unique=True),
-            Column('gender', CHAR),
+            Column('gender', TINYTEXT),
             Column('age', Integer),
             Column('birthday',  MEDIUMTEXT),
             Column('search_status', MEDIUMTEXT),
@@ -56,40 +55,11 @@ class DatabaseWorker:
 
         self.metadata.create_all(self.engine)
 
-    def build_filtering_query(self, filter, table='resumes'):
-        print(filter)
-        select_query = f'SELECT * FROM {table}'
-
-        order_by = []
-        if filter:
-            select_query += ' WHERE'
-            for key in filter:
-                for entry in filter[key]:
-                    if 'ordering' in entry:
-                        order_by.append([key, entry['ordering']])
-                    select_query += f' {table}.{key} LIKE \'{entry["text"]}\' OR'
-                select_query = select_query[:-2] + 'AND'
-            select_query = select_query[:-3]
-
-        if order_by:
-            select_query += ' ORDER BY'
-            for pair in order_by:
-                select_query += f' {table}.{pair[0]} {pair[1].upper()},'
-            select_query = select_query[:-1]
-
-        return select_query
-
-
     def get_vacancies_table(self, page=0, limit=20, filter={}):
-        with self.engine.connect() as connection:
-            select_query = self.build_filtering_query(loads(filter), 'vacancies') + f' LIMIT {limit} OFFSET {page*limit}'
-            print(select_query)
-            return connection.execute(text(select_query)).mappings().all()
+        return self.__db_get_rows(page=page, limit=limit, filter=filter, table='vacancies')
 
     def get_resumes_table(self, page=0, limit=20, filter={}):
-        with self.engine.connect() as connection:
-            select_query = self.build_filtering_query(loads(filter), 'resumes') + f' LIMIT {limit} OFFSET {page*limit}'
-            return connection.execute(text(select_query)).mappings().all()
+        return self.__db_get_rows(page=page, limit=limit, filter=filter, table='resumes')
 
     def add_vacancy(self, id, name, area, average_salary, currency, type, employer, requirement, responsibility, schedule, experience, employment):
         with self.engine.connect() as connection:
@@ -106,7 +76,7 @@ class DatabaseWorker:
                 experience=insert_query.inserted.experience, employment=insert_query.inserted.employment
             )
 
-            result = connection.execute(on_duplicate_query)
+            connection.execute(on_duplicate_query)
             connection.commit()
 
     def add_resume(self, id, gender, age, birthday, search_status, address, position, specializations, about, salary, currency, preferred_commute_time, skills, employment, moving_status, citizenship, languages, education, schedule):
@@ -135,5 +105,32 @@ class DatabaseWorker:
                 schedule=insert_query.inserted.schedule
             )
 
-            result = connection.execute(on_duplicate_query)
+            connection.execute(on_duplicate_query)
             connection.commit()
+
+    def __db_get_rows(self, page=0, limit=0, filter={}, table='resumes'):
+        with self.engine.connect() as connection:
+            select_query = self.__build_filtering_query(loads(filter), table) + f' LIMIT {limit} OFFSET {page*limit}'
+            return connection.execute(text(select_query)).mappings().all()
+        
+    def __build_filtering_query(self, filter, table='resumes'):
+        select_query = f'SELECT * FROM {table}'
+        order_by = []
+
+        if filter:
+            select_query += ' WHERE'
+            for key in filter:
+                for entry in filter[key]:
+                    if 'ordering' in entry:
+                        order_by.append([key, entry['ordering']])
+                    select_query += f' {table}.{key} LIKE \'{entry["text"]}\' OR'
+                select_query = select_query[:-2] + 'AND'
+            select_query = select_query[:-3]
+
+        if order_by:
+            select_query += ' ORDER BY'
+            for pair in order_by:
+                select_query += f' {table}.{pair[0]} {pair[1].upper()},'
+            select_query = select_query[:-1]
+
+        return select_query
