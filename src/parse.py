@@ -1,5 +1,6 @@
 import httpx
 from  bs4 import BeautifulSoup
+from json import loads
 
 class ParserInstance:
     def __init__(self, config):
@@ -69,6 +70,9 @@ class ParserInstance:
             params += f'salary_from={int(salary - 0.1*salary)}&salary_to={int(salary + 0.1*salary)}&label=only_with_salary&'
         links = self.__get_resume_links(query_text=params[:-1])
         
+        if not links:
+            return None
+
         result = []
 
         for link in links:
@@ -186,6 +190,17 @@ class ParserInstance:
         data = soup.find_all(attrs={'data-qa': 'resume-block-experience-position'})
         if data:
             params['work_prev_pos'] = list(map(lambda x: ParserInstance.fix_spaces(x.text), data))
+
+        if params['salary']:
+            currency_cutoff = 0
+            while not params['salary'][:-currency_cutoff].isdigit():
+                currency_cutoff += 1
+
+            params['currency'] = params['salary'][-currency_cutoff:]
+            params['salary'] = int(params['salary'][:-currency_cutoff])
+
+        if params['age']:
+            params['age'] = int(params['age'].split()[0])
 
         return params
 

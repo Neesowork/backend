@@ -3,6 +3,7 @@ from sqlalchemy.dialects.mysql import VARCHAR, MEDIUMTEXT, JSON, TINYTEXT, CHAR,
 from sqlalchemy_utils import database_exists, create_database
 
 from json import loads
+from copy import deepcopy
 
 class DatabaseWorker:
     def __init__(self, config):
@@ -59,7 +60,33 @@ class DatabaseWorker:
         return self.__db_get_rows(page=page, limit=limit, filter=filter, table='vacancies')
 
     def get_resumes_table(self, page=0, limit=20, filter={}):
-        return self.__db_get_rows(page=page, limit=limit, filter=filter, table='resumes')
+        rows = self.__db_get_rows(page=page, limit=limit, filter=filter, table='resumes')
+        result = []
+
+        # Original 'Row Mapping' class seems to reset after the iterator destructs, so the array is rebuilt
+        for row in rows:
+            result.append(dict(row))
+
+        for row in result:
+            if row['specializations']:
+                row['specializations'] = loads(loads(row['specializations']))
+
+            if row['languages']:
+                row['languages'] = loads(loads(row['languages']))
+
+            if row['education']:   
+                row['education'] = loads(loads(row['education']))
+
+            if row['schedule']:
+                row['schedule'] = loads(row['schedule'])
+
+            if row['skills']:
+                row['skills'] = loads(loads(row['skills']))
+
+            if row['employment']:
+                row['employment'] = loads(row['employment'])
+
+        return result
 
     def add_vacancy(self, id, name, area, average_salary, currency, type, employer, requirement, responsibility, schedule, experience, employment):
         with self.engine.connect() as connection:

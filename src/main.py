@@ -2,12 +2,14 @@ import json
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 
 from contextlib import asynccontextmanager
 from multiprocessing import Process, Queue, Event, Lock
 
 from src.parse import ParserInstance
 from src.db import DatabaseWorker
+from src.structs import Vacancy, Resume
 
 db, parser = None, None
 
@@ -29,18 +31,6 @@ def push_resumes(stop_event, stdout_lock, queue):
         params = queue.get()
         if not params: # Stop if None
             break
-        
-        if params['salary']:
-            currency_cutoff = 1
-            while not params['salary'][:-currency_cutoff].isdigit():
-                currency_cutoff += 1
-
-            params['currency'] = params['salary'][-currency_cutoff:]
-            params['salary'] = int(params['salary'][:-currency_cutoff])
-
-        if params['age']:
-            params['age'] = int(params['age'].split()[0])
-
         try:
             db.add_resume(id=params['id'],
                           gender=params['gender'],
@@ -147,7 +137,7 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=['*'])
 
 @app.get('/search/vacancies')
-def search_vacancies(page: int=0, text: str=None, experience: str=None, schedule: str=None, employment: str=None, salary: int=None):
+def search_vacancies(page: int=0, text: str=None, experience: str=None, schedule: str=None, employment: str=None, salary: int=None) -> list[Optional[Vacancy]]:
     vacancies = parser.get_vacancies(page=page, text=text, experience=experience, schedule=schedule, employment=employment, salary=salary)
     if not vacancies:
         raise HTTPException(status_code=500, detail='Failed to parse by requested vacancies\' params')
@@ -156,7 +146,7 @@ def search_vacancies(page: int=0, text: str=None, experience: str=None, schedule
     return vacancies
 
 @app.get('/search/resumes')
-def search_resumes(page: int=0, text: str=None, experience: str=None, schedule: str=None, salary: int=None, employment: str=None):
+def search_resumes(page: int=0, text: str=None, experience: str=None, schedule: str=None, salary: int=None, employment: str=None) -> list[Optional[Resume]]:
     resumes = parser.get_resumes(page=page, text=text, experience=experience, schedule=schedule, employment=employment, salary=salary)
     if not resumes:
         raise HTTPException(status_code=500, detail='Failed to parse by requested resumes\' params')
@@ -165,18 +155,18 @@ def search_resumes(page: int=0, text: str=None, experience: str=None, schedule: 
     return resumes
 
 @app.get('/db/vacancies')
-def default(page: int=0, limit: int=20, filter: str='{}'):
+def default(page: int=0, limit: int=20, filter: str='{}') -> list[Optional[Vacancy]]:
     global db
     return db.get_vacancies_table(page, limit, filter)
 
 @app.get('/db/resumes')
-def default(page: int=0, limit: int=20, filter: str='{}'):
+def default(page: int=0, limit: int=20, filter: str='{}') -> list[Optional[Resume]]:
     global db
     return db.get_resumes_table(page, limit, filter)
 
 @app.get('/')
-def default():
-    return "Server is functional"
+def default() -> dict:
+    return {'detail': 'server functional'}
 
 def to_json(obj):
     return json.dumps(obj, ensure_ascii=False)
