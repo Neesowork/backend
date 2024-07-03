@@ -104,7 +104,7 @@ class TestResumes(unittest.TestCase):
             self.assertTrue(('частичная занятость' in item['employment']) or ('part time' in item['employment']))
 
     def test_02_search_negative(self):
-        r = httpx.get(f'http://localhost:8000/search/vacancies?salary=abc')
+        r = httpx.get(f'http://localhost:8000/search/resumes?salary=abc')
         self.assertEqual(r.status_code, 422)
 
     def test_03_db_basic(self):
